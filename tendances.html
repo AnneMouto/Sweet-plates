@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>En tendance — Sweet plates</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { width: 100%; overflow: hidden; }
+
+  /* Page en colonne : entête fixe en haut, fil de vidéos qui occupe le reste */
+  body { background: #111; font-family: Arial, sans-serif; display: flex; flex-direction: column;
+         height: 100vh; height: 100dvh; }
+
+  /* ===== Entête (même identité visuelle qu'avant, plus compacte) ===== */
+  header { flex: none; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+           gap: 8px; padding: 10px 4%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.1); z-index: 10; }
+  .logo { font-size: 26px; font-weight: 700; color: #d21e63; }
+  .top-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 30px;
+                font-weight: 600; font-size: 13px; text-decoration: none; transition: transform .2s ease; }
+  .action-btn.primary { background: #f7498c; color: #fff; box-shadow: 0 6px 18px rgba(247,73,140,.3); }
+  .action-btn.secondary { background: #fff; color: #d83d77; border: 1.5px solid #f2a4c2; }
+  .action-btn:hover { transform: translateY(-2px); }
+
+  /* ===== Fil de vidéos : une vidéo = un écran, on défile pour passer à la suivante ===== */
+  .feed { flex: 1; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; }
+  .feed::-webkit-scrollbar { display: none; }
+  .clip { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; justify-content: center; }
+  .player { position: relative; width: min(100%, 420px); height: 100%; background: #000; overflow: hidden; }
+  .player video { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+
+  /* Écran de secours si le fichier vidéo est introuvable */
+  .fallback { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center;
+              justify-content: center; gap: 10px; text-align: center; padding: 30px; color: #fff;
+              background: linear-gradient(160deg, #f7498c, #5b1a3a); }
+  .fallback .emoji { font-size: 70px; }
+  .fallback small { opacity: .8; }
+  .clip.erreur .fallback { display: flex; }
+  .clip.erreur video { display: none; }
+
+  /* Dégradé sombre en bas pour lire le texte */
+  .player::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+                   background: linear-gradient(transparent, rgba(0,0,0,.7)); pointer-events: none; }
+
+  /* Infos du créateur (en bas à gauche) */
+  .info { position: absolute; left: 14px; right: 80px; bottom: 18px; z-index: 2; color: #fff; }
+  .createur { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .createur b { font-size: 16px; }
+  .suivre { border: 1.5px solid #fff; background: transparent; color: #fff; border-radius: 6px;
+            padding: 4px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .suivre.on { background: #fff; color: #d83d77; border-color: #fff; }
+  .legende { font-size: 14px; line-height: 1.4; }
+
+  /* Boutons d'action (à droite) : j'aime, son */
+  .actions { position: absolute; right: 12px; bottom: 24px; z-index: 2; display: flex; flex-direction: column;
+             align-items: center; gap: 18px; }
+  .actions button { border: 0; background: rgba(255,255,255,.18); color: #fff; width: 50px; height: 50px;
+                    border-radius: 50%; font-size: 24px; cursor: pointer; backdrop-filter: blur(4px); }
+  .like.on { background: #f7498c; }
+  .compteur { color: #fff; font-size: 12px; font-weight: 600; margin-top: -12px; }
+
+  /* Message « connectez-vous » */
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 30px); opacity: 0;
+           pointer-events: none; background: #fff; color: #333; padding: 12px 18px; border-radius: 30px;
+           box-shadow: 0 8px 24px rgba(0,0,0,.35); font-size: 14px; display: flex; gap: 12px; align-items: center;
+           transition: .25s; z-index: 50; width: max-content; max-width: 92vw; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .toast a { background: #f7498c; color: #fff; padding: 7px 14px; border-radius: 20px; text-decoration: none; font-weight: 600; }
+
+  @media (max-width: 600px) {
+    .logo { font-size: 20px; }
+    .action-btn { padding: 8px 12px; font-size: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .toast, .action-btn { transition: none; } }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo"><span style="color: rgb(247, 73, 140);">Tendances</span></div>
+    <!-- Boutons d'action : accueil / recettes / compte -->
+    <div class="top-actions">
+      <a href="recipe principal 1.html" class="action-btn secondary">🏠 Accueil</a>
+      <a href="Recipe res1.html" class="action-btn primary">🍰 Nos recettes</a>
+      <a href="connexion.html" id="authBtn" class="action-btn secondary">👤 Se connecter</a>
+    </div>
+  </header>
+
+  <!-- Le fil est rempli par le script plus bas -->
+  <main class="feed" id="feed"></main>
+
+  <!-- Message affiché quand on essaie de liker / suivre sans être connecté -->
+  <div class="toast" id="toast" role="status">
+    <span>Connectez-vous pour liker et suivre 🧁</span>
+    <a href="connexion.html?retour=tendances.html">Se connecter</a>
+  </div>
+
+<script src="auth.js"></script>
+<script>
+  /* ====== VOS VIDÉOS ======
+     Mettez vos fichiers dans un dossier « videos/ » (format .mp4 vertical) et adaptez cette liste.
+     likes = nombre de likes de départ ; creator = compte à suivre. */
+  const VIDEOS = [
+    { id: 'v1', src: 'videos/crepes.mp4',   creator: 'chef_lea',   emoji: '🥞', likes: 1240, caption: 'Crêpes au chocolat en 5 minutes 🍫' },
+    { id: 'v2', src: 'videos/macarons.mp4', creator: 'mamie_sucre', emoji: '🍪', likes: 980,  caption: 'Le secret des macarons qui ne craquent pas' },
+    { id: 'v3', src: 'videos/fondant.mp4',  creator: 'chef_lea',   emoji: '🎂', likes: 2310, caption: 'Fondant au chocolat coulant, recette facile' },
+    { id: 'v4', src: 'videos/tarte.mp4',    creator: 'pate_et_co', emoji: '🥧', likes: 540,  caption: 'Tarte aux fruits rouges 🍓' },
+    { id: 'v5', src: 'videos/eclairs.mp4',  creator: 'mamie_sucre', emoji: '🍩', likes: 1670, caption: 'Éclairs maison : la pâte à choux sans stress' }
+  ];
+
+  const feed = document.getElementById('feed');
+  const toast = document.getElementById('toast');
+  let muet = true; // les navigateurs n'autorisent la lecture auto que sans le son
+
+  // Bouton compte dans l'entête
+  Auth.badge(document.getElementById('authBtn'), 'tendances.html');
+
+  // 1240 -> « 1,2 k »
+  const formater = n => n >= 1000 ? (n / 1000).toFixed(1).replace('.', ',') + ' k' : String(n);
+
+  // ----- Construction du fil -----
+  VIDEOS.forEach(v => {
+    const clip = document.createElement('section');
+    clip.className = 'clip';
+    clip.dataset.id = v.id;
+    clip.innerHTML = `
+      <div class="player">
+        <video src="${v.src}" loop muted playsinline preload="metadata"></video>
+        <div class="fallback">
+          <div class="emoji">${v.emoji}</div>
+          <b>${v.caption}</b>
+          <small>Ajoutez votre vidéo : ${v.src}</small>
+        </div>
+        <div class="info">
+          <div class="createur"><b>@${v.creator}</b><button class="suivre" type="button">Suivre</button></div>
+          <p class="legende">${v.caption}</p>
+        </div>
+        <div class="actions">
+          <button class="like" type="button" aria-label="J'aime">❤</button>
+          <span class="compteur"></span>
+          <button class="son" type="button" aria-label="Activer le son">🔇</button>
+        </div>
+      </div>`;
+    feed.appendChild(clip);
+
+    const video = clip.querySelector('video');
+    video.addEventListener('error', () => clip.classList.add('erreur')); // fichier introuvable
+    video.addEventListener('click', () => video.paused ? video.play() : video.pause()); // toucher = pause / lecture
+    video.addEventListener('dblclick', () => { if (!Auth.social().likes.includes(v.id)) aimer(v); }); // double clic = j'aime
+    clip.querySelector('.like').onclick = () => aimer(v);
+    clip.querySelector('.suivre').onclick = () => suivre(v);
+    clip.querySelector('.son').onclick = () => { muet = !muet; appliquerSon(); };
+  });
+
+  // ----- J'aime / Suivre : réservés aux comptes connectés -----
+  function demanderConnexion() {
+    toast.classList.add('show');
+    clearTimeout(demanderConnexion.t);
+    demanderConnexion.t = setTimeout(() => toast.classList.remove('show'), 4500);
+  }
+  function aimer(v) { if (!Auth.current()) return demanderConnexion(); Auth.toggleLike(v.id); majBoutons(); }
+  function suivre(v) {
+    if (!Auth.current()) return demanderConnexion();
+    if (Auth.current().toLowerCase() === v.creator) return; // on ne se suit pas soi-même
+    Auth.toggleFollow(v.creator);
+    majBoutons();
+  }
+
+  // Met à jour cœurs, compteurs et boutons « Suivre » selon le compte connecté
+  function majBoutons() {
+    const s = Auth.social();
+    document.querySelectorAll('.clip').forEach(clip => {
+      const v = VIDEOS.find(x => x.id === clip.dataset.id);
+      const aime = s.likes.includes(v.id), suit = s.follows.includes(v.creator);
+      clip.querySelector('.like').classList.toggle('on', aime);
+      clip.querySelector('.compteur').textContent = formater(v.likes + (aime ? 1 : 0)); // likes de départ + le vôtre
+      const b = clip.querySelector('.suivre');
+      b.textContent = suit ? 'Suivi ✓' : 'Suivre';
+      b.classList.toggle('on', suit);
+      b.hidden = Auth.current() && Auth.current().toLowerCase() === v.creator;
+    });
+  }
+
+  // Son activé / coupé pour toutes les vidéos
+  function appliquerSon() {
+    document.querySelectorAll('video').forEach(v => v.muted = muet);
+    document.querySelectorAll('.son').forEach(b => b.textContent = muet ? '🔇' : '🔊');
+  }
+
+  // Lecture automatique : seule la vidéo visible à l'écran est jouée
+  const observeur = new IntersectionObserver(entrees => {
+    entrees.forEach(e => {
+      const video = e.target.querySelector('video');
+      if (e.isIntersecting) video.play().catch(() => {}); else { video.pause(); video.currentTime = 0; }
+    });
+  }, { root: feed, threshold: 0.7 });
+  document.querySelectorAll('.clip').forEach(c => observeur.observe(c));
+
+  majBoutons();
+</script>
+</body>
+</html>

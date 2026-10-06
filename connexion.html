@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion — Sweet plates</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f9f9f9; color: #333; min-height: 100vh;
+         display: flex; flex-direction: column; align-items: center; padding: 30px 15px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); margin-bottom: 6px; }
+  h1 span { color: #f7498c; }
+  .retour { margin: 8px 0 22px; color: #d83d77; font-weight: 600; text-decoration: none; }
+  .carte { width: min(100%, 420px); background: #fff; border-radius: 18px; padding: 26px;
+           box-shadow: 0 8px 30px rgba(247, 73, 140, .15); border: 1px solid rgba(247, 73, 140, .18); }
+
+  /* Onglets Connexion / Créer un compte */
+  .onglets { display: flex; background: #fceaf1; border-radius: 30px; padding: 4px; margin-bottom: 22px; }
+  .onglets button { flex: 1; border: 0; background: transparent; padding: 10px; border-radius: 26px;
+                    font-weight: 600; font-size: 14px; color: #d83d77; cursor: pointer; }
+  .onglets button.actif { background: #f7498c; color: #fff; }
+
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+  input { width: 100%; padding: 12px 14px; border: 1px solid #ddd; border-radius: 10px; font-size: 15px; outline: none; }
+  input:focus { border-color: #f7498c; box-shadow: 0 0 0 3px rgba(247, 73, 140, .15); }
+  .erreur { min-height: 20px; margin-top: 14px; color: #c0123f; font-size: 13px; }
+  .valider { width: 100%; margin-top: 6px; padding: 13px; border: 0; border-radius: 30px; background: #f7498c;
+             color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 18px rgba(247, 73, 140, .3); }
+  .valider:disabled { opacity: .6; cursor: wait; }
+  .deja { text-align: center; line-height: 1.8; }
+  .deja button { margin-top: 14px; padding: 12px 24px; border-radius: 30px; border: 1.5px solid #f2a4c2;
+                 background: #fff; color: #d83d77; font-weight: 600; cursor: pointer; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <h1><b><i><span>Sweet</span> plates</i></b></h1>
+  <a class="retour" href="recipe principal 1.html">🏠 Retour à l'accueil</a>
+
+  <div class="carte">
+    <!-- Affiché si l'utilisateur est déjà connecté -->
+    <div class="deja" id="deja" hidden>
+      <p>Vous êtes connecté en tant que <b id="nomActuel"></b> 🧁</p>
+      <button type="button" id="btnDeco">Se déconnecter</button>
+    </div>
+
+    <div id="formulaires">
+      <div class="onglets">
+        <button type="button" class="actif" data-mode="login">Connexion</button>
+        <button type="button" data-mode="signup">Créer un compte</button>
+      </div>
+
+      <form id="form" novalidate>
+        <!-- Champ visible uniquement à l'inscription -->
+        <div id="blocPseudo" hidden>
+          <label for="pseudo">Nom d'utilisateur</label>
+          <input id="pseudo" autocomplete="username" placeholder="ex. chef_anne" maxlength="20">
+        </div>
+        <label for="id" id="labelId">Nom d'utilisateur ou email</label>
+        <input id="id" autocomplete="username" placeholder="Votre identifiant">
+        <label for="mdp">Mot de passe</label>
+        <input id="mdp" type="password" autocomplete="current-password" placeholder="6 caractères minimum">
+        <div id="blocConfirm" hidden>
+          <label for="mdp2">Confirmer le mot de passe</label>
+          <input id="mdp2" type="password" autocomplete="new-password">
+        </div>
+        <p class="erreur" id="erreur" role="alert"></p>
+        <button class="valider" id="valider" type="submit">Se connecter</button>
+      </form>
+    </div>
+  </div>
+
+<script src="auth.js"></script>
+<script>
+  let mode = 'login'; // 'login' ou 'signup'
+  const $ = id => document.getElementById(id);
+
+  // Page où revenir après connexion (uniquement un fichier .html du site, pour éviter les redirections externes)
+  const param = new URLSearchParams(location.search).get('retour');
+  const retour = param && /^[\w .-]+\.html$/.test(param) ? param : 'recipe principal 1.html';
+
+  // Si déjà connecté, on propose seulement la déconnexion
+  if (Auth.current()) {
+    $('formulaires').hidden = true;
+    $('deja').hidden = false;
+    $('nomActuel').textContent = Auth.current();
+  }
+  $('btnDeco').onclick = () => { Auth.logout(); location.reload(); };
+
+  // Bascule entre les deux onglets
+  document.querySelectorAll('.onglets button').forEach(b => b.onclick = () => {
+    mode = b.dataset.mode;
+    document.querySelectorAll('.onglets button').forEach(x => x.classList.toggle('actif', x === b));
+    const ins = mode === 'signup';
+    $('blocPseudo').hidden = !ins;
+    $('blocConfirm').hidden = !ins;
+    $('labelId').textContent = ins ? 'Email' : "Nom d'utilisateur ou email";
+    $('id').placeholder = ins ? 'vous@exemple.com' : 'Votre identifiant';
+    $('id').autocomplete = ins ? 'email' : 'username';
+    $('mdp').autocomplete = ins ? 'new-password' : 'current-password';
+    $('valider').textContent = ins ? 'Créer mon compte' : 'Se connecter';
+    $('erreur').textContent = '';
+  });
+
+  // Envoi du formulaire
+  $('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = msg => { $('erreur').textContent = msg; };
+    const id = $('id').value.trim(), mdp = $('mdp').value;
+    err('');
+    let res;
+    $('valider').disabled = true;
+
+    if (mode === 'signup') {
+      const pseudo = $('pseudo').value.trim();
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(pseudo)) { $('valider').disabled = false; return err("Nom d'utilisateur : 3 à 20 caractères (lettres, chiffres, _)."); }
+      if (!/^\S+@\S+\.\S+$/.test(id)) { $('valider').disabled = false; return err('Entrez un email valide.'); }
+      if (mdp.length < 6) { $('valider').disabled = false; return err('Le mot de passe doit contenir au moins 6 caractères.'); }
+      if (mdp !== $('mdp2').value) { $('valider').disabled = false; return err('Les mots de passe ne correspondent pas.'); }
+      res = await Auth.signup(pseudo, id, mdp);
+    } else {
+      if (!id || !mdp) { $('valider').disabled = false; return err('Remplissez les deux champs.'); }
+      res = await Auth.login(id, mdp);
+    }
+
+    $('valider').disabled = false;
+    if (!res.ok) return err(res.error);
+    location.href = retour; // connexion réussie : retour à la page d'origine
+  });
+</script>
+</body>
+</html>
